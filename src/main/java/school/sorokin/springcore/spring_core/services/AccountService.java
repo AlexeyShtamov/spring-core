@@ -10,7 +10,6 @@ import school.sorokin.springcore.spring_core.models.User;
 import school.sorokin.springcore.spring_core.repositories.FakeAccountTable;
 import school.sorokin.springcore.spring_core.repositories.FakeUserTable;
 
-import java.util.List;
 import java.util.Optional;
 
 @Service

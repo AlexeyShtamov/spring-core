@@ -4,6 +4,7 @@ import org.springframework.stereotype.Service;
 import school.sorokin.springcore.spring_core.exceptions.IsAlreadyExistException;
 import school.sorokin.springcore.spring_core.exceptions.NegativeBalanceException;
 import school.sorokin.springcore.spring_core.exceptions.NoEntityWithThisIdException;
+import school.sorokin.springcore.spring_core.models.OperationType;
 
 import java.util.Scanner;
 
@@ -36,17 +37,23 @@ public class OperationsConsoleListener {
         while (true){
 
             System.out.println(MAIN_TEXT);
-            String operation = scanner.nextLine();
+
+            OperationType operation;
+            try {
+                operation = OperationType.valueOf(scanner.nextLine());
+            } catch (IllegalArgumentException e){
+                System.out.println("No such operation exists");
+                continue;
+            }
 
             switch (operation){
-                case "USER_CREATE" -> callCreateUser();
-                case "ACCOUNT_CREATE" -> callCreateAccount();
-                case "ACCOUNT_DEPOSIT" -> callAddMoney();
-                case "ACCOUNT_TRANSFER" -> callTransBetweenAccounts();
-                case "SHOW_ALL_USERS" -> callShowAllUsers();
-                case "ACCOUNT_WITHDRAW" -> callWithdrawMoney();
-                case "ACCOUNT_CLOSE" -> callCloseAccount();
-                default -> System.out.println("Такой операции не существует");
+                case USER_CREATE -> callCreateUser();
+                case ACCOUNT_CREATE -> callCreateAccount();
+                case ACCOUNT_DEPOSIT -> callAddMoney();
+                case ACCOUNT_TRANSFER -> callTransBetweenAccounts();
+                case SHOW_ALL_USERS -> callShowAllUsers();
+                case ACCOUNT_WITHDRAW -> callWithdrawMoney();
+                case ACCOUNT_CLOSE -> callCloseAccount();
             }
         }
 
