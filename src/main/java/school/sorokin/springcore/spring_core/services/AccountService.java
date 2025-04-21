@@ -31,43 +31,36 @@ public class AccountService {
     }
 
     public String createAccount(int userId) throws NoEntityWithThisIdException {
-        Optional<User> optionalUser = fakeUserTable.findById(userId);
+        User user = fakeUserTable.findById(userId).orElseThrow(() -> new NoEntityWithThisIdException("Cannot find user with id: " + userId));
 
-        if (optionalUser.isPresent()){
+        Account account = new Account(userId, moneyAmount);
+        fakeAccountTable.getAccounts().add(account);
+        user.getAccounts().add(account);
 
-            Account account = new Account(userId, moneyAmount);
-            fakeAccountTable.getAccounts().add(account);
-            optionalUser.get().getAccounts().add(account);
+        return "New account created with ID: " + account.getId() + " for user: " + user.getLogin();
 
-            return "New account created with ID: " + account.getId() + " for user: " + optionalUser.get().getLogin();
-        }
-        throw new NoEntityWithThisIdException("Cannot find user with id: " + userId);
     }
 
-    public String addMoney(int accountId, double depositAmount) throws NoEntityWithThisIdException {
-        Optional<Account> optionalAccount = fakeAccountTable.findById(accountId);
+    public String addMoney(int accountId, double depositAmount) throws NoEntityWithThisIdException, NegativeBalanceException {
+        Account account = fakeAccountTable.findById(accountId).orElseThrow(() -> new NoEntityWithThisIdException("Cannot find account with id: " + accountId));
 
-        if (optionalAccount.isPresent()){
-            Account account = optionalAccount.get();
-            account.setMoneyAmount(account.getMoneyAmount() + depositAmount);
-            return "Amount " + depositAmount + " deposited to account ID: " + accountId;
-        }
-        throw new NoEntityWithThisIdException("Cannot find account with id: " + accountId);
+        if (depositAmount <= 0) throw new NegativeBalanceException("Deposit amount couldn't be negative of zero");
+
+        account.setMoneyAmount(account.getMoneyAmount() + depositAmount);
+        return "Amount " + depositAmount + " deposited to account ID: " + accountId;
     }
 
     public String reduceMoney(int accountId, double withdrawAmount) throws NegativeBalanceException, NoEntityWithThisIdException {
-        Optional<Account> optionalAccount = fakeAccountTable.findById(accountId);
+        Account account = fakeAccountTable.findById(accountId).orElseThrow(() -> new NoEntityWithThisIdException("Cannot find account with id: " + accountId));
 
-        if (optionalAccount.isPresent()){
-            Account account = optionalAccount.get();
-            if (account.getMoneyAmount() - withdrawAmount < 0)
-                throw new NegativeBalanceException(
-                        String.format("Balance couldn't be negative. You balance: %.2f, withdraw: %.2f\n", account.getMoneyAmount(), withdrawAmount));
+        if (withdrawAmount <= 0) throw new NegativeBalanceException("Withdraw amount couldn't be negative of zero");
 
-            account.setMoneyAmount(account.getMoneyAmount() - withdrawAmount);
-            return "Amount " + withdrawAmount + " withdraw from account ID: " + accountId;
-        }
-        throw new NoEntityWithThisIdException("Cannot find account with id: " + accountId);
+        if (account.getMoneyAmount() - withdrawAmount < 0)
+            throw new NegativeBalanceException(
+                    String.format("Balance couldn't be negative. You balance: %.2f, withdraw: %.2f\n", account.getMoneyAmount(), withdrawAmount));
+
+        account.setMoneyAmount(account.getMoneyAmount() - withdrawAmount);
+        return "Amount " + withdrawAmount + " withdraw from account ID: " + accountId;
     }
 
     public String transBetweenAccounts(int sourceId, int targetId, double transferAmount) throws NoEntityWithThisIdException, NegativeBalanceException {
@@ -104,7 +97,11 @@ public class AccountService {
 
         user.getAccounts().remove(account);
         int accountTransId = user.getAccounts().get(0).getId();
-        addMoney(accountTransId, money);
+        try {
+            addMoney(accountTransId, money);
+        } catch (NegativeBalanceException e) {
+            System.out.println(e.getMessage());
+        }
 
         return "Account with ID "+ accountId +" has been closed.";
 
