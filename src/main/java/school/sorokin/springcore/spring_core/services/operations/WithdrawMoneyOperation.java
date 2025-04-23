@@ -31,7 +31,7 @@ public class WithdrawMoneyOperation implements OperationCommand{
             String result = accountService.reduceMoney(accountId, withdrawAmount);
             System.out.println(result);
 
-        }catch (NoEntityWithThisIdException | NumberFormatException | NegativeBalanceException e) {
+        }catch (NumberFormatException e) {
             System.out.println(e.getMessage());
         }
     }

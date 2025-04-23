@@ -31,7 +31,7 @@ public class AddMoneyOperation implements OperationCommand{
             String result = accountService.addMoney(accountId, depositAmount);
             System.out.println(result);
 
-        }catch (NoEntityWithThisIdException | NumberFormatException | NegativeBalanceException e) {
+        }catch (NumberFormatException e) {
             System.out.println(e.getMessage());
         }
     }

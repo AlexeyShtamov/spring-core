@@ -34,7 +34,7 @@ public class TransBetweenAccountsOperation implements OperationCommand{
             String result = accountService.transBetweenAccounts(sourceId, targetId, transferAmount);
             System.out.println(result);
 
-        }catch (NoEntityWithThisIdException | NumberFormatException | NegativeBalanceException e) {
+        }catch (NumberFormatException e) {
             System.out.println(e.getMessage());
         }
     }

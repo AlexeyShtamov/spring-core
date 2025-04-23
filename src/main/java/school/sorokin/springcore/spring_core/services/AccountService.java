@@ -1,5 +1,6 @@
 package school.sorokin.springcore.spring_core.services;
 
+import org.hibernate.SessionFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.PropertySource;
 import org.springframework.stereotype.Service;
@@ -7,17 +8,18 @@ import school.sorokin.springcore.spring_core.exceptions.NegativeBalanceException
 import school.sorokin.springcore.spring_core.exceptions.NoEntityWithThisIdException;
 import school.sorokin.springcore.spring_core.models.Account;
 import school.sorokin.springcore.spring_core.models.User;
-import school.sorokin.springcore.spring_core.repositories.FakeAccountTable;
-import school.sorokin.springcore.spring_core.repositories.FakeUserTable;
+import school.sorokin.springcore.spring_core.services.helpers.TransactionHelper;
 
 import java.util.Optional;
+
 
 @Service
 @PropertySource("classpath:application.properties")
 public class AccountService {
 
-    private final FakeUserTable fakeUserTable;
-    private final FakeAccountTable fakeAccountTable;
+    private final TransactionHelper transactionHelper;
+
+    private final SessionFactory sessionFactory;
 
     @Value("${account.default-amount}")
     private double moneyAmount;
@@ -25,86 +27,112 @@ public class AccountService {
     @Value("${account.transfer-commission}")
     private int commission;
 
-    public AccountService(FakeUserTable fakeUserTable, FakeAccountTable fakeAccountTable) {
-        this.fakeUserTable = fakeUserTable;
-        this.fakeAccountTable = fakeAccountTable;
+    public AccountService(TransactionHelper transactionHelper, SessionFactory sessionFactory) {
+        this.transactionHelper = transactionHelper;
+        this.sessionFactory = sessionFactory;
     }
 
-    public String createAccount(int userId) throws NoEntityWithThisIdException {
-        User user = fakeUserTable.findById(userId).orElseThrow(() -> new NoEntityWithThisIdException("Cannot find user with id: " + userId));
-
-        Account account = new Account(userId, moneyAmount);
-        fakeAccountTable.getAccounts().add(account);
-        user.getAccounts().add(account);
-
-        return "New account created with ID: " + account.getId() + " for user: " + user.getLogin();
-
+    private Optional<Account> findAccountById(Long id) {
+        var account = sessionFactory.getCurrentSession()
+                .get(Account.class, id);
+        return Optional.of(account);
     }
 
-    public String addMoney(int accountId, double depositAmount) throws NoEntityWithThisIdException, NegativeBalanceException {
-        Account account = fakeAccountTable.findById(accountId).orElseThrow(() -> new NoEntityWithThisIdException("Cannot find account with id: " + accountId));
+    public String createAccount(User user) {
+        Account createdAccount = transactionHelper.executeInTransaction(() -> {
 
-        if (depositAmount <= 0) throw new NegativeBalanceException("Deposit amount couldn't be negative of zero");
+            Account account = new Account(user, moneyAmount);
 
-        account.setMoneyAmount(account.getMoneyAmount() + depositAmount);
-        return "Amount " + depositAmount + " deposited to account ID: " + accountId;
+            sessionFactory.getCurrentSession().persist(account);
+            return account;
+        });
+
+        return "New account created with ID: " + createdAccount.getId() + " for user: " + createdAccount.getUser().getId();
     }
 
-    public String reduceMoney(int accountId, double withdrawAmount) throws NegativeBalanceException, NoEntityWithThisIdException {
-        Account account = fakeAccountTable.findById(accountId).orElseThrow(() -> new NoEntityWithThisIdException("Cannot find account with id: " + accountId));
+    public String addMoney(long accountId, double depositAmount) {
+        Account account = transactionHelper.executeInTransaction(() -> {
+            var session = sessionFactory.getCurrentSession();
+            Account foundedAccount = findAccountById(accountId)
+                    .orElseThrow(() -> new IllegalArgumentException("Cannot find account with id: " + accountId));
 
-        if (withdrawAmount <= 0) throw new NegativeBalanceException("Withdraw amount couldn't be negative of zero");
+            if (depositAmount <= 0)
+                throw new IllegalArgumentException("Deposit amount couldn't be negative of zero");
 
-        if (account.getMoneyAmount() - withdrawAmount < 0)
-            throw new NegativeBalanceException(
-                    String.format("Balance couldn't be negative. You balance: %.2f, withdraw: %.2f\n", account.getMoneyAmount(), withdrawAmount));
+            foundedAccount.setMoneyAmount(foundedAccount.getMoneyAmount() + depositAmount);
+            session.persist(foundedAccount);
 
-        account.setMoneyAmount(account.getMoneyAmount() - withdrawAmount);
-        return "Amount " + withdrawAmount + " withdraw from account ID: " + accountId;
+            return foundedAccount;
+        });
+
+        return "Amount " + depositAmount + " deposited to account ID: " + account.getUser().getId();
     }
 
-    public String transBetweenAccounts(int sourceId, int targetId, double transferAmount) throws NoEntityWithThisIdException, NegativeBalanceException {
+    public String reduceMoney(long accountId, double withdrawAmount) {
 
-        Account account1 = fakeAccountTable.findById(sourceId)
-                .orElseThrow(() -> new NoEntityWithThisIdException("No source target with id: " + sourceId));
-        Account account2 = fakeAccountTable.findById(targetId)
-                .orElseThrow(() -> new NoEntityWithThisIdException("No source target with id: " + targetId));
+        Account updatedAccount = transactionHelper.executeInTransaction(() -> {
+            var session = sessionFactory.getCurrentSession();
+            Account foundedAccount = findAccountById(accountId)
+                    .orElseThrow(() -> new IllegalArgumentException("Cannot find account with id: " + accountId));
 
-        double totalAmount = transferAmount;
-        if (account1.getUserId() != account2.getUserId()){
-            totalAmount += ((transferAmount / 100)*commission);
-            System.out.println(totalAmount);
-        }
+            if (withdrawAmount <= 0)
+                throw new IllegalArgumentException("Deposit amount couldn't be negative of zero");
 
+            if (foundedAccount.getMoneyAmount() - withdrawAmount < 0)
+                throw new IllegalArgumentException(
+                        String.format("Balance couldn't be negative. You balance: %.2f, withdraw: %.2f\n", foundedAccount.getMoneyAmount(), withdrawAmount));
 
-        reduceMoney(sourceId, totalAmount);
-        addMoney(targetId, transferAmount);
+            foundedAccount.setMoneyAmount(foundedAccount.getMoneyAmount() - withdrawAmount);
+            session.persist(foundedAccount);
 
-        return String.format("Amount %.2f transferred from account ID %d to account ID %d.\n",
-                transferAmount, sourceId, targetId);
+            return foundedAccount;
+        });
+        return "Amount " + withdrawAmount + " withdraw from account ID: " + updatedAccount.getId();
     }
 
-    public String closeAccount(int accountId) throws NoEntityWithThisIdException {
-        Account account = fakeAccountTable.findById(accountId)
-                .orElseThrow(() -> new NoEntityWithThisIdException("Cannot find account with id: " + accountId));
+    public String transBetweenAccounts(long sourceId, long targetId, double transferAmount) {
+        return transactionHelper.executeInTransaction(() -> {
+            Account account1 = findAccountById(sourceId)
+                    .orElseThrow(() -> new IllegalArgumentException("Cannot find account with id: " + sourceId));
+            Account account2 = findAccountById(targetId)
+                    .orElseThrow(() -> new IllegalArgumentException("Cannot find account with id: " + targetId));
 
-        User user = fakeUserTable.findById(account.getUserId())
-                .orElseThrow(() -> new NoEntityWithThisIdException("Cannot find user with id: " + accountId));
+            double totalAmount = transferAmount;
+            if (account1.getUser().getId() != account2.getUser().getId()){
+                totalAmount += ((transferAmount / 100)*commission);
+            }
 
-        if (user.getAccounts().size() == 1) return "You couldn't close your account if you have only one";
+            reduceMoney(sourceId, totalAmount);
+            addMoney(targetId, transferAmount);
 
-        double money = account.getMoneyAmount();
+            return String.format("Amount %.2f transferred from account ID %d to account ID %d.\n",
+                    transferAmount, sourceId, targetId);
+        });
+    }
 
-        user.getAccounts().remove(account);
-        int accountTransId = user.getAccounts().get(0).getId();
-        try {
+    public String closeAccount(long accountId) throws NoEntityWithThisIdException {
+        return transactionHelper.executeInTransaction(() -> {
+            var session = sessionFactory.getCurrentSession();
+            Account foundedAccount = findAccountById(accountId)
+                    .orElseThrow(() -> new IllegalArgumentException("Cannot find account with id: " + accountId));
+
+            User foundedUser = session.get(User.class, foundedAccount.getUser().getId());
+            if (foundedUser == null)
+                throw new IllegalArgumentException("Cannot find user with id: " + foundedAccount.getUser().getId());
+
+            if (foundedUser.getAccounts().size() == 1) throw new IllegalArgumentException("You couldn't close your account if you have only one");
+
+            double money = foundedAccount.getMoneyAmount();
+
+            foundedUser.getAccounts().remove(foundedAccount);
+            int accountTransId = foundedUser.getAccounts().get(0).getId();
             addMoney(accountTransId, money);
-        } catch (NegativeBalanceException e) {
-            System.out.println(e.getMessage());
-        }
 
-        return "Account with ID "+ accountId +" has been closed.";
+            session.persist(foundedAccount);
+            session.remove(foundedAccount);
 
+            return "Account with id %d is closed\n".formatted(accountId);
+        });
     }
 
 }

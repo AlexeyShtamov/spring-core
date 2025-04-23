@@ -1,27 +1,40 @@
 package school.sorokin.springcore.spring_core.models;
 
 
+import jakarta.persistence.*;
+
 import java.util.Objects;
 
+@Entity
+@Table(name = "account")
 public class Account {
-    private static int count;
 
-    private final int id;
-    private int userId;
-    private double moneyAmount;
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Integer id;
+    private Double moneyAmount;
 
-    public Account(int userId, double moneyAmount) {
-        this.id = ++count;
-        this.userId = userId;
+    @ManyToOne
+    @JoinColumn(name = "user_id", nullable = false)
+    private User user;
+
+    public Account(User user, double moneyAmount) {
+        this.user = user;
         this.moneyAmount = moneyAmount;
     }
+
+    public Account() {
+
+    }
+
 
     public int getId() {
         return id;
     }
 
-    public int getUserId() {
-        return userId;
+
+    public User getUser() {
+        return user;
     }
 
     public double getMoneyAmount() {
@@ -32,16 +45,11 @@ public class Account {
         this.moneyAmount = moneyAmount;
     }
 
-    public static int getCount() {
-        return count;
-    }
-
     @Override
     public String toString() {
         return "Account{" +
-                "id=" + id +
-                ", userId=" + userId +
-                ", moneyAmount=" + moneyAmount +
+                "moneyAmount=" + moneyAmount +
+                ", id=" + id +
                 '}';
     }
 
