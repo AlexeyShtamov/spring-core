@@ -1,23 +1,30 @@
 package school.sorokin.springcore.spring_core.models;
 
-import org.springframework.stereotype.Component;
+import jakarta.persistence.*;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 
+@Entity
+@Table(name = "user_table")
 public class User {
 
-    private static int count;
 
-    private final int id;
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Integer id;
     private String login;
+
+    @OneToMany(mappedBy = "user", orphanRemoval = true, fetch = FetchType.EAGER)
     private List<Account> accounts;
 
     public User(String login) {
-        this.id = ++count;
         this.login = login;
         this.accounts = new ArrayList<>();
+    }
+
+    public User() {
+
     }
 
     public int getId() {
